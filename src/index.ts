@@ -213,7 +213,9 @@ app.get('/*', async (c) => {
                 type: (item.type === 'series' || item.episodes_count > 1) ? 'series' : 'movie',
                 name: item.name,
                 poster: item.thumb_url.startsWith('http') ? item.thumb_url.replace('img.ophim.cc', 'img.ophim1.com') : `${IMG_BASE}${item.thumb_url}`,
-                description: `${item.origin_name} (${item.year})`
+                description: `${item.origin_name} (${item.year})`,
+                releaseInfo: item.year?.toString(),
+                imdbRating: (item.imdb?.vote_average || item.tmdb?.vote_average)?.toString()
             }))
             return c.json({ metas })
         } catch (e) {
@@ -264,16 +266,31 @@ app.get('/*', async (c) => {
                 director: item.director || [],
                 cast: item.actor || [],
                 trailers: getYoutubeId(item.trailer_url) ? [{ source: getYoutubeId(item.trailer_url), type: 'Trailer' }] : [],
-                imdbRating: (item.imdb?.vote_average || item.tmdb?.vote_average)?.toString(),
-                imdb_id: item.imdb?.id || undefined
+                imdbRating: undefined,
+                imdb_id: undefined
+            }
+
+            // Extract IDs and Rating from item with fallback
+            const rawImdbId = item.imdb?.id || item.tmdb?.imdb_id
+            if (rawImdbId) meta.imdb_id = rawImdbId.toString().startsWith('tt') ? rawImdbId : `tt${rawImdbId}`
+
+            const rawRating = item.imdb?.vote_average || item.tmdb?.vote_average
+            if (rawRating) {
+                meta.imdbRating = parseFloat(rawRating).toFixed(1)
             }
 
             // Fetch extra cast/director info from peoples API
             try {
                 const peopleRes = await fetch(`https://ophim1.com/v1/api/phim/${slug}/peoples`)
                 const peopleData: any = await peopleRes.json()
-                if ((peopleData?.status === 'success' || peopleData?.success === true) && peopleData.data?.peoples) {
-                    const peoples = peopleData.data.peoples
+                if ((peopleData?.status === 'success' || peopleData?.success === true) && peopleData.data) {
+                    const data = peopleData.data
+                    const peoples = data.peoples || []
+
+                    // Robust ID fallback from peoples API
+                    if (!meta.imdb_id && data.imdb_id) {
+                        meta.imdb_id = data.imdb_id.toString().startsWith('tt') ? data.imdb_id : `tt${data.imdb_id}`
+                    }
 
                     // Fallback to simple strings (Limit to top contributors)
                     const directorsList = peoples.filter((p: any) => p.known_for_department === 'Directing' || p.known_for_department === 'Writing').map((p: any) => p.name).slice(0, 5)
@@ -322,6 +339,25 @@ app.get('/*', async (c) => {
                 }
             } catch (e) {
                 console.error(`[Meta] Error fetching peoples for ${slug}:`, e)
+            }
+
+            // FINAL FALLBACK: Fetch from Cinemeta if runtime or rating is still missing
+            if (meta.imdb_id && ((!meta.runtime || meta.runtime.includes('?') || meta.runtime === '0 Phút') || !meta.imdbRating)) {
+                try {
+                    console.log(`[Meta] Fetching fallback from Cinemeta for ${meta.imdb_id}`)
+                    const cinemetaRes = await fetch(`https://cinemeta-live.strem.io/meta/${meta.type}/${meta.imdb_id}.json`)
+                    const cinemetaData: any = await cinemetaRes.json()
+                    if (cinemetaData?.meta) {
+                        if ((!meta.runtime || meta.runtime.includes('?') || meta.runtime === '0 Phút') && cinemetaData.meta.runtime) {
+                            meta.runtime = cinemetaData.meta.runtime
+                        }
+                        if (!meta.imdbRating && cinemetaData.meta.imdbRating) {
+                            meta.imdbRating = cinemetaData.meta.imdbRating.toString()
+                        }
+                    }
+                } catch (e) {
+                    console.error(`[Meta] Cinemeta fallback failed:`, e)
+                }
             }
 
             if (meta.type === 'series') {
