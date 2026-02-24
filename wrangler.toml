@@ -1,0 +1,7 @@
+name = "ophim-stremio-addon"
+main = "src/index.ts"
+compatibility_date = "2024-02-22"
+
+[vars]
+OPHIM_API_BASE = "https://ophim1.com"
+OPHIM_IMG_BASE = "https://img.ophim.live/uploads/movies/"
