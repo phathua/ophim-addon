@@ -66,58 +66,67 @@ const MANIFEST: any = {
 // Simple in-memory cache for IMDB to slug mapping
 const imdbCache = new Map<string, string>()
 
-async function getSlugFromImdb(imdbId: string, type: string): Promise<string | null> {
-    if (imdbCache.has(imdbId)) return imdbCache.get(imdbId)!
+async function getSlugFromImdb(imdbId: string, type: string, season?: number): Promise<string | null> {
+    const cacheKey = (type === 'series' && season) ? `${imdbId}:${season}` : imdbId
+    if (imdbCache.has(cacheKey)) return imdbCache.get(cacheKey)!
 
     try {
-        console.log(`[Mapping] Finding OPhim slug for IMDB: ${imdbId} (${type})`)
+        console.log(`[Mapping] Finding OPhim slug for IMDB: ${imdbId} (${type}, S${season || 1})`)
 
-        // 1. Try searching OPhim by IMDB ID directly (Very efficient if indexed)
-        const directSearchRes = await fetch(`https://ophim1.com/v1/api/tim-kiem?keyword=${imdbId}&limit=5`)
-        const directSearchData: any = await directSearchRes.json()
-        const directItems = directSearchData.data?.items || []
-
-        for (const item of directItems) {
-            // High confidence match if found via IMDB search
-            console.log(`[Mapping] Found IMDB match via direct search: ${item.slug} for ${imdbId}`)
-            imdbCache.set(imdbId, item.slug)
-            return item.slug
-        }
-
-        // 2. Fallback: Search by name from Cinemeta (Legacy logic)
-        const cinemetaRes = await fetch(`https://v3-cinemeta.strem.io/meta/${type === 'series' ? 'series' : 'movie'}/${imdbId}.json`)
-        const cinemetaData: any = await cinemetaRes.json()
-        const meta = cinemetaData.meta
-        if (!meta || !meta.name) return null
-
-        const searchRes = await fetch(`https://ophim1.com/v1/api/tim-kiem?keyword=${encodeURIComponent(meta.name)}&limit=10`)
+        // 1. Search OPhim by IMDB ID
+        const searchRes = await fetch(`https://ophim1.com/v1/api/tim-kiem?keyword=${imdbId}&limit=10`)
         const searchData: any = await searchRes.json()
         const items = searchData.data?.items || []
 
-        for (const item of items) {
-            // Check year similarity (+/- 1 year)
-            if (meta.year && item.year && Math.abs(parseInt(item.year) - parseInt(meta.year)) > 1) continue
-
+        // 2. Fetch details for candidates and verify tmdb.season + imdb.id
+        const detailPromises = items.map(async (item: any) => {
             try {
-                // Double check IMDB ID in detail
-                const imgRes = await fetch(`https://ophim1.com/v1/api/phim/${item.slug}`)
-                const detailData: any = await imgRes.json()
-                if (detailData.data?.item?.imdb?.id === imdbId) {
-                    console.log(`[Mapping] Found IMDB match via fallback detail: ${item.slug}`)
-                    imdbCache.set(imdbId, item.slug)
-                    return item.slug
-                }
-            } catch (innerE) { }
-        }
+                const res = await fetch(`https://ophim1.com/v1/api/phim/${item.slug}`)
+                const data: any = await res.json()
+                return { slug: item.slug, detail: data.data?.item }
+            } catch (e) { return null }
+        })
 
-        // Final fallback: First search result by name if year matches
-        if (items.length > 0) {
-            const firstItem = items[0]
-            if (meta.year && firstItem.year && Math.abs(parseInt(firstItem.year) - parseInt(meta.year)) <= 1) {
-                console.log(`[Mapping] Falling back to first name search result: ${firstItem.slug}`)
-                return firstItem.slug
+        const candidates = (await Promise.all(detailPromises)).filter(c => c && c.detail)
+
+        // Priority 1: Exact IMDB ID + Match Season (if series)
+        for (const cand of candidates as any[]) {
+            const detail = cand.detail
+            if (detail.imdb?.id === imdbId) {
+                if (type === 'series' && season) {
+                    if (detail.tmdb?.season === season) {
+                        console.log(`[Mapping] Exact Match (IMDB+Season): ${cand.slug}`)
+                        imdbCache.set(cacheKey, cand.slug)
+                        return cand.slug
+                    }
+                } else {
+                    console.log(`[Mapping] Exact Match (IMDB): ${cand.slug}`)
+                    imdbCache.set(cacheKey, cand.slug)
+                    return cand.slug
+                }
             }
         }
+
+        // Priority 2: Fallback to title-based matching if IMDB ID check failed but found candidates
+        if (type === 'series' && season) {
+            const sStr = season.toString()
+            const fallback = items.find((item: any) => {
+                const name = item.name.toLowerCase()
+                return name.includes(`phần ${sStr}`) || name.includes(`season ${sStr}`) || name.includes(` s${sStr}`)
+            })
+            if (fallback) {
+                console.log(`[Mapping] Fallback Match (Title-based): ${fallback.slug}`)
+                imdbCache.set(cacheKey, fallback.slug)
+                return fallback.slug
+            }
+        }
+
+        // Final fallback: First result
+        if (items.length > 0) {
+            console.log(`[Mapping] Final Fallback (First result): ${items[0].slug}`)
+            return items[0].slug
+        }
+
     } catch (e) {
         console.error(`[Mapping] Error mapping IMDB ${imdbId}:`, e)
     }
@@ -255,19 +264,20 @@ app.get('/*', async (c) => {
         } else if (id.startsWith('tt')) {
             const idParts = id.split(':')
             const imdbId = idParts[0]
+            let season = 1
 
-            const foundSlug = await getSlugFromImdb(imdbId, type)
+            if (type === 'series') {
+                season = parseInt(idParts[1]) || 1
+                epSlug = idParts[2] || '1'
+            }
+
+            const foundSlug = await getSlugFromImdb(imdbId, type, season)
             if (!foundSlug) {
-                console.log(`[Stream] Could not map IMDB ${imdbId} to OPhim slug`)
+                console.log(`[Stream] Could not map IMDB ${imdbId} S${season} to OPhim slug`)
                 return c.json({ streams: [] })
             }
 
             slug = foundSlug
-            // For series: tt123:season:episode -> OPhim usually treats as flat list
-            // We use the episode number (idParts[2]) as the slug
-            if (type === 'series') {
-                epSlug = idParts[2] || '1'
-            }
         } else {
             return c.json({ streams: [] })
         }
@@ -277,16 +287,35 @@ app.get('/*', async (c) => {
             const res = await fetch(`https://ophim1.com/v1/api/phim/${slug}`)
             const result: any = await res.json()
             const item = result.data.item
-            if (!item) return c.json({ streams: [] })
+            if (!item || !item.episodes) return c.json({ streams: [] })
 
             const streams: any[] = []
-            item.episodes?.forEach((s: any) => {
-                // Find episode matching epSlug (either by slug or name)
-                const ep = s.server_data.find((e: any) => e.slug === epSlug || e.name === epSlug || e.name === `0${epSlug}` || e.name === `Tập ${epSlug}`)
+            item.episodes.forEach((s: any) => {
+                const serverData = s.server_data || []
+                if (serverData.length === 0) return
+
+                // Flexible matching for episode
+                // 1. Exact match by name or slug
+                // 2. Numeric match (e.g. "1" matches "Tập 1" or "01")
+                // 3. For movies (type='movie' or only 1 ep), match "Full" or just take the first one
+                let ep = serverData.find((e: any) =>
+                    e.slug === epSlug ||
+                    e.name === epSlug ||
+                    e.name?.toLowerCase() === 'full' ||
+                    e.name === `Tập ${epSlug}` ||
+                    e.name === `Tập 0${epSlug}` ||
+                    e.name === `0${epSlug}`
+                )
+
+                // If no match and it's a movie or there's only one episode, take the first one
+                if (!ep && (type === 'movie' || serverData.length === 1)) {
+                    ep = serverData[0]
+                }
+
                 if (ep?.link_m3u8) {
                     streams.push({
                         name: `OPhim\n${s.server_name}`,
-                        title: `${item.name}\n${ep.name} [${item.quality}]`,
+                        title: `${item.name}\n${ep.name} [${item.quality || 'HD'}]`,
                         url: ep.link_m3u8
                     })
                 }
