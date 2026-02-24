@@ -4,64 +4,90 @@ import { cors } from 'hono/cors'
 const app = new Hono()
 app.use('*', cors())
 
-const GENRES = [
-    { name: 'Hành Động', slug: 'hanh-dong' }, { name: 'Tình Cảm', slug: 'tinh-cam' },
-    { name: 'Hài Hước', slug: 'hai-huoc' }, { name: 'Cổ Trang', slug: 'co-trang' },
-    { name: 'Tâm Lý', slug: 'tam-ly' }, { name: 'Hình Sự', slug: 'hinh-su' },
-    { name: 'Chiến Tranh', slug: 'chien-tranh' }, { name: 'Thể Thao', slug: 'the-thao' },
-    { name: 'Võ Thuật', slug: 'vo-thuat' }, { name: 'Viễn Tưởng', slug: 'vien-tuong' },
-    { name: 'Phiêu Lưu', slug: 'phieu-luu' }, { name: 'Khoa Học', slug: 'khoa-hoc' },
-    { name: 'Kinh Dị', slug: 'kinh-di' }, { name: 'Âm Nhạc', slug: 'am-nhac' },
-    { name: 'Thần Thoại', slug: 'than-thoai' }, { name: 'Tài Liệu', slug: 'tai-lieu' },
-    { name: 'Gia Đình', slug: 'gia-dinh' }, { name: 'Chính kịch', slug: 'chinh-kich' },
-    { name: 'Bí ẩn', slug: 'bi-an' }, { name: 'Học Đường', slug: 'hoc-duong' },
-    { name: 'Kinh Điển', slug: 'kinh-dien' }, { name: 'Phim 18+', slug: 'phim-18' }
-]
+let GENRES: { name: string, slug: string }[] = []
+let COUNTRIES: { name: string, slug: string }[] = []
+let lastMetaUpdate = 0
+const META_CACHE_TTL = 3600000 // 1 hour
 
-const COUNTRIES = [
-    { name: 'Âu Mỹ', slug: 'au-my' }, { name: 'Hàn Quốc', slug: 'han-quoc' },
-    { name: 'Trung Quốc', slug: 'trung-quoc' }, { name: 'Nhật Bản', slug: 'nhat-ban' },
-    { name: 'Thái Lan', slug: 'thai-lan' }, { name: 'Hồng Kông', slug: 'hong-kong' },
-    { name: 'Đài Loan', slug: 'dai-loan' }, { name: 'Việt Nam', slug: 'viet-nam' },
-    { name: 'Ấn Độ', slug: 'an-do' }, { name: 'Pháp', slug: 'phap' },
-    { name: 'Đức', slug: 'duc' }, { name: 'Anh', slug: 'anh' },
-    { name: 'Canada', slug: 'canada' }, { name: 'Khác', slug: 'khac' }
-]
+async function ensureMetadata() {
+    if (GENRES.length > 0 && COUNTRIES.length > 0 && (Date.now() - lastMetaUpdate < META_CACHE_TTL)) {
+        return
+    }
 
-const EXTRA = [
-    { name: 'search', isRequired: false },
-    { name: 'genre', options: GENRES.map(g => g.name), isRequired: false },
-    { name: 'country', options: COUNTRIES.map(c => c.name), isRequired: false }
-]
+    try {
+        console.log('[Metadata] Refreshing genres and countries...')
+        const [genreRes, countryRes] = await Promise.all([
+            fetch('https://ophim1.com/v1/api/the-loai'),
+            fetch('https://ophim1.com/v1/api/quoc-gia')
+        ])
 
-const MANIFEST: any = {
-    id: 'com.vibe.ophim.pro',
-    name: 'OPhim Stremio Addon',
-    version: '1.2.9',
-    description: 'Addon xem phim từ OPhim với đầy đủ danh mục, thể loại và quốc gia.',
-    resources: [
-        { name: 'catalog', types: ['movie', 'series', 'anime', 'tv'], idPrefixes: ['ophim:'] },
-        { name: 'meta', types: ['movie', 'series', 'anime', 'tv'], idPrefixes: ['ophim:'] },
-        { name: 'stream', types: ['movie', 'series', 'anime', 'tv'], idPrefixes: ['ophim:', 'tt'] }
-    ],
-    types: ['movie', 'series', 'anime', 'tv'],
-    catalogs: [
-        { type: 'movie', id: 'ophim_phim-moi', name: 'OPhim - Phim Mới', extra: EXTRA },
-        { type: 'series', id: 'ophim_phim-bo', name: 'OPhim - Phim Bộ', extra: EXTRA },
-        { type: 'movie', id: 'ophim_phim-le', name: 'OPhim - Phim Lẻ', extra: EXTRA },
-        { type: 'series', id: 'ophim_tv-shows', name: 'OPhim - Shows', extra: EXTRA },
-        { type: 'movie', id: 'ophim_hoat-hinh', name: 'OPhim - Hoạt Hình', extra: EXTRA },
-        { type: 'movie', id: 'ophim_phim-vietsub', name: 'OPhim - Vietsub', extra: EXTRA },
-        { type: 'movie', id: 'ophim_phim-thuyet-minh', name: 'OPhim - Thuyết Minh', extra: EXTRA },
-        { type: 'movie', id: 'ophim_phim-long-tien', name: 'OPhim - Lồng Tiếng', extra: EXTRA },
-        { type: 'series', id: 'ophim_phim-bo-dang-chieu', name: 'OPhim - Bộ Đang Chiếu', extra: EXTRA },
-        { type: 'series', id: 'ophim_phim-bo-hoan-thanh', name: 'OPhim - Bộ Hoàn Thành', extra: EXTRA },
-        { type: 'movie', id: 'ophim_phim-sap-chieu', name: 'OPhim - Sắp Chiếu', extra: EXTRA },
-        { type: 'movie', id: 'ophim_subteam', name: 'OPhim - Subteam', extra: EXTRA },
-        { type: 'movie', id: 'ophim_phim-chieu-rap', name: 'OPhim - Chiếu Rạp', extra: EXTRA }
-    ],
-    idPrefixes: ['ophim:', 'tt']
+        const genreData: any = await genreRes.json()
+        const countryData: any = await countryRes.json()
+
+        if (genreData.status === 'success') {
+            GENRES = genreData.data.items.map((i: any) => ({ name: i.name, slug: i.slug }))
+        }
+        if (countryData.status === 'success') {
+            COUNTRIES = countryData.data.items.map((i: any) => ({ name: i.name, slug: i.slug }))
+        }
+
+        lastMetaUpdate = Date.now()
+        console.log(`[Metadata] Updated: ${GENRES.length} genres, ${COUNTRIES.length} countries`)
+    } catch (e) {
+        console.error('[Metadata] Failed to catch dynamic metadata, using fallbacks', e)
+        // Fallbacks if both are empty
+        if (GENRES.length === 0) {
+            GENRES = [{ name: 'Hành Động', slug: 'hanh-dong' }, { name: 'Tình Cảm', slug: 'tinh-cam' }, { name: 'Hài Hước', slug: 'hai-huoc' }]
+        }
+        if (COUNTRIES.length === 0) {
+            COUNTRIES = [{ name: 'Âu Mỹ', slug: 'au-my' }, { name: 'Hàn Quốc', slug: 'han-quoc' }, { name: 'Trung Quốc', slug: 'trung-quoc' }]
+        }
+    }
 }
+
+async function getManifest() {
+    await ensureMetadata()
+    const EXTRA_CATALOG = [
+        { name: 'genre', options: GENRES.map(g => g.name), isRequired: false },
+        { name: 'country', options: COUNTRIES.map(c => c.name), isRequired: false }
+    ]
+
+    const EXTRA_SEARCH = [
+        { name: 'search', isRequired: true }
+    ]
+
+    return {
+        id: 'com.vibe.ophim.pro',
+        name: 'OPhim Stremio Addon',
+        version: '1.3.1',
+        description: 'Addon xem phim từ OPhim với đầy đủ danh mục, thể loại và quốc gia cập nhật tự động.',
+        resources: [
+            { name: 'catalog', types: ['movie', 'series', 'anime', 'tv'], idPrefixes: ['ophim:'] },
+            { name: 'meta', types: ['movie', 'series', 'anime', 'tv'], idPrefixes: ['ophim:'] },
+            { name: 'stream', types: ['movie', 'series', 'anime', 'tv'], idPrefixes: ['ophim:', 'tt'] }
+        ],
+        types: ['movie', 'series', 'anime', 'tv'],
+        catalogs: [
+            { type: 'movie', id: 'ophim_search', name: 'OPhim - Tìm kiếm', extra: EXTRA_SEARCH },
+            { type: 'series', id: 'ophim_search', name: 'OPhim - Tìm kiếm', extra: EXTRA_SEARCH },
+            { type: 'movie', id: 'ophim_phim-moi', name: 'OPhim - Phim Mới', extra: EXTRA_CATALOG },
+            { type: 'series', id: 'ophim_phim-bo', name: 'OPhim - Phim Bộ', extra: EXTRA_CATALOG },
+            { type: 'movie', id: 'ophim_phim-le', name: 'OPhim - Phim Lẻ', extra: EXTRA_CATALOG },
+            { type: 'series', id: 'ophim_tv-shows', name: 'OPhim - Shows', extra: EXTRA_CATALOG },
+            { type: 'movie', id: 'ophim_hoat-hinh', name: 'OPhim - Hoạt Hình', extra: EXTRA_CATALOG },
+            { type: 'movie', id: 'ophim_phim-vietsub', name: 'OPhim - Vietsub', extra: EXTRA_CATALOG },
+            { type: 'movie', id: 'ophim_phim-thuyet-minh', name: 'OPhim - Thuyết Minh', extra: EXTRA_CATALOG },
+            { type: 'movie', id: 'ophim_phim-long-tien', name: 'OPhim - Lồng Tiếng', extra: EXTRA_CATALOG },
+            { type: 'series', id: 'ophim_phim-bo-dang-chieu', name: 'OPhim - Bộ Đang Chiếu', extra: EXTRA_CATALOG },
+            { type: 'series', id: 'ophim_phim-bo-hoan-thanh', name: 'OPhim - Bộ Hoàn Thành', extra: EXTRA_CATALOG },
+            { type: 'movie', id: 'ophim_phim-sap-chieu', name: 'OPhim - Sắp Chiếu', extra: EXTRA_CATALOG },
+            { type: 'movie', id: 'ophim_subteam', name: 'OPhim - Subteam', extra: EXTRA_CATALOG },
+            { type: 'movie', id: 'ophim_phim-chieu-rap', name: 'OPhim - Chiếu Rạp', extra: EXTRA_CATALOG }
+        ],
+        idPrefixes: ['ophim:', 'tt']
+    }
+}
+
 
 // Simple in-memory cache for IMDB to slug mapping
 const imdbCache = new Map<string, string>()
@@ -136,14 +162,14 @@ async function getSlugFromImdb(imdbId: string, type: string, season?: number): P
 // Global Image Base
 const IMG_BASE = 'https://img.ophim1.com/uploads/movies/'
 
-app.get('/manifest.json', (c) => c.json(MANIFEST))
+app.get('/manifest.json', async (c) => c.json(await getManifest()))
 
 // The most robust wildcard route
 app.get('/*', async (c) => {
     let path = decodeURIComponent(c.req.path)
     console.log(`[Request] Decoded Path: ${path}`)
 
-    if (path === '/manifest.json') return c.json(MANIFEST)
+    if (path === '/manifest.json') return c.json(await getManifest())
 
     // Catalog: /catalog/:type/:id/:extra?.json
     if (path.startsWith('/catalog/')) {
@@ -157,6 +183,7 @@ app.get('/*', async (c) => {
 
         console.log(`[Catalog] Parsed: type=${type}, id=${id}, extra=${extra}`)
 
+        await ensureMetadata()
         let searchQuery = '', genreSlug = '', countrySlug = ''
         if (extra) {
             extra.split('&').forEach(p => {
@@ -167,13 +194,15 @@ app.get('/*', async (c) => {
             })
         }
 
-        let apiUrl = 'https://ophim1.com/v1/api/danh-sach/phim-moi?page=1'
+        let apiUrl = ''
         if (searchQuery) {
             apiUrl = `https://ophim1.com/v1/api/tim-kiem?keyword=${encodeURIComponent(searchQuery)}&page=1`
-        } else if (id) {
+        } else if (id && id !== 'ophim_search') {
             apiUrl = `https://ophim1.com/v1/api/danh-sach/${id.replace('ophim_', '')}?page=1`
             if (genreSlug) apiUrl += `&category=${genreSlug}`
             if (countrySlug) apiUrl += `&country=${countrySlug}`
+        } else {
+            apiUrl = 'https://ophim1.com/v1/api/danh-sach/phim-moi?page=1'
         }
 
         try {
@@ -194,13 +223,15 @@ app.get('/*', async (c) => {
 
     // Meta: /meta/:type/:id.json
     if (path.startsWith('/meta/')) {
-        let parts = path.substring(6).split('/') // index 0 is type, index 1 is id
-        let idRaw = parts[1] || ''
-        let id = idRaw.endsWith('.json') ? idRaw.slice(0, -5) : idRaw
+        const metaPath = path.substring(6)
+        const parts = metaPath.split('/')
+        // Handles: /meta/movie/id.json OR /meta/id.json
+        let idRaw = parts.length > 1 ? parts[1] : parts[0]
+        let id = idRaw.split('.json')[0] // more robust than slice
 
-        // Handle encoded colon or just parts
+        console.log(`[Meta] Path: ${path}, Extracted ID: ${id}`)
         const slug = id.includes(':') ? id.split(':')[1] : id
-        console.log(`[Meta] Parsed Slug: ${slug}`)
+        console.log(`[Meta] Using Slug: ${slug}`)
 
         try {
             const res = await fetch(`https://ophim1.com/v1/api/phim/${slug}`)
@@ -210,6 +241,14 @@ app.get('/*', async (c) => {
 
             const fix = (u: string) => !u ? '' : (u.startsWith('http') ? u.replace('img.ophim.cc', 'img.ophim1.com') : `${IMG_BASE}${u}`)
 
+            // Helper to extract YouTube ID
+            const getYoutubeId = (url: string) => {
+                if (!url) return null
+                const regex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/
+                const match = url.match(regex)
+                return match ? match[1] : null
+            }
+
             const meta: any = {
                 id: `ophim:${item.slug}`,
                 type: (item.type === 'series' || item.type === 'hoat-hinh' || (item.episodes && item.episodes[0]?.server_data.length > 1)) ? 'series' : 'movie',
@@ -218,9 +257,65 @@ app.get('/*', async (c) => {
                 background: fix(item.poster_url),
                 description: item.content ? item.content.replace(/<[^>]*>?/gm, '') : '',
                 releaseInfo: item.year?.toString(),
+                released: item.created?.time || new Date(item.year, 0, 1).toISOString(),
+                runtime: item.time,
+                country: item.country?.[0]?.name || '',
                 genres: item.category?.map((cat: any) => cat.name) || [],
                 director: item.director || [],
-                cast: item.actor || []
+                cast: item.actor || [],
+                trailers: getYoutubeId(item.trailer_url) ? [{ source: getYoutubeId(item.trailer_url), type: 'Trailer' }] : [],
+                imdbRating: item.imdb?.vote_average > 0 ? item.imdb.vote_average.toString() : undefined
+            }
+
+            // Fetch extra cast/director info from peoples API
+            try {
+                const peopleRes = await fetch(`https://ophim1.com/v1/api/phim/${slug}/peoples`)
+                const peopleData: any = await peopleRes.json()
+                if (peopleData?.status === 'success' && peopleData.data?.peoples) {
+                    const peoples = peopleData.data.peoples
+
+                    // Fallback to simple strings
+                    const directors = peoples.filter((p: any) => p.known_for_department === 'Directing').map((p: any) => p.name)
+                    const actors = peoples.filter((p: any) => p.known_for_department === 'Acting').map((p: any) => p.name)
+                    if (directors.length > 0) meta.director = directors
+                    if (actors.length > 0) meta.cast = actors
+
+                    // Rich metadata for Stremio UI (matching Cinemeta structure)
+                    meta.credits_cast = peoples
+                        .filter((p: any) => p.known_for_department === 'Acting')
+                        .map((p: any) => ({
+                            id: p.tmdb_people_id,
+                            name: p.name,
+                            character: p.character || '',
+                            profile_path: p.profile_path ? (p.profile_path.startsWith('http') ? p.profile_path : `https://image.tmdb.org/t/p/w185${p.profile_path}`) : null
+                        }))
+
+                    meta.credits_crew = peoples
+                        .filter((p: any) => p.known_for_department === 'Directing' || p.known_for_department === 'Writing')
+                        .map((p: any) => ({
+                            id: p.tmdb_people_id,
+                            name: p.name,
+                            department: p.known_for_department,
+                            job: p.known_for_department === 'Directing' ? 'Director' : 'Writer',
+                            profile_path: p.profile_path ? (p.profile_path.startsWith('http') ? p.profile_path : `https://image.tmdb.org/t/p/w185${p.profile_path}`) : null
+                        }))
+
+                    // Links for navigation (deprecated field fallback)
+                    meta.links = [
+                        ...(item.category?.map((cat: any) => ({
+                            name: cat.name,
+                            category: 'genre',
+                            url: `stremio:///search?search=${encodeURIComponent(cat.name)}`
+                        })) || []),
+                        ...(peoples.map((p: any) => ({
+                            name: p.name,
+                            category: p.known_for_department === 'Directing' ? 'director' : 'actor',
+                            url: `stremio:///search?search=${encodeURIComponent(p.name)}`
+                        })))
+                    ]
+                }
+            } catch (e) {
+                console.error(`[Meta] Error fetching peoples for ${slug}:`, e)
             }
 
             if (meta.type === 'series') {
