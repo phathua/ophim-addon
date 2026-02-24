@@ -59,7 +59,7 @@ async function getManifest() {
     return {
         id: 'com.vibe.ophim.pro',
         name: 'OPhim Stremio Addon',
-        version: '1.3.1',
+        version: '1.3.2',
         description: 'Addon xem phim từ OPhim với đầy đủ danh mục, thể loại và quốc gia cập nhật tự động.',
         resources: [
             { name: 'catalog', types: ['movie', 'series', 'anime', 'tv'], idPrefixes: ['ophim:'] },
@@ -257,59 +257,65 @@ app.get('/*', async (c) => {
                 background: fix(item.poster_url),
                 description: item.content ? item.content.replace(/<[^>]*>?/gm, '') : '',
                 releaseInfo: item.year?.toString(),
-                released: item.created?.time || new Date(item.year, 0, 1).toISOString(),
+                released: item.created?.time || (item.year ? new Date(item.year, 0, 1).toISOString() : undefined),
                 runtime: item.time,
                 country: item.country?.[0]?.name || '',
                 genres: item.category?.map((cat: any) => cat.name) || [],
                 director: item.director || [],
                 cast: item.actor || [],
                 trailers: getYoutubeId(item.trailer_url) ? [{ source: getYoutubeId(item.trailer_url), type: 'Trailer' }] : [],
-                imdbRating: item.imdb?.vote_average > 0 ? item.imdb.vote_average.toString() : undefined
+                imdbRating: (item.imdb?.vote_average || item.tmdb?.vote_average)?.toString(),
+                imdb_id: item.imdb?.id || undefined
             }
 
             // Fetch extra cast/director info from peoples API
             try {
                 const peopleRes = await fetch(`https://ophim1.com/v1/api/phim/${slug}/peoples`)
                 const peopleData: any = await peopleRes.json()
-                if (peopleData?.status === 'success' && peopleData.data?.peoples) {
+                if ((peopleData?.status === 'success' || peopleData?.success === true) && peopleData.data?.peoples) {
                     const peoples = peopleData.data.peoples
 
-                    // Fallback to simple strings
-                    const directors = peoples.filter((p: any) => p.known_for_department === 'Directing').map((p: any) => p.name)
-                    const actors = peoples.filter((p: any) => p.known_for_department === 'Acting').map((p: any) => p.name)
-                    if (directors.length > 0) meta.director = directors
-                    if (actors.length > 0) meta.cast = actors
+                    // Fallback to simple strings (Limit to top contributors)
+                    const directorsList = peoples.filter((p: any) => p.known_for_department === 'Directing' || p.known_for_department === 'Writing').map((p: any) => p.name).slice(0, 5)
+                    const actorsList = peoples.filter((p: any) => p.known_for_department === 'Acting').map((p: any) => p.name).slice(0, 10)
+
+                    if (directorsList.length > 0) meta.director = directorsList
+                    if (actorsList.length > 0) meta.cast = actorsList
 
                     // Rich metadata for Stremio UI (matching Cinemeta structure)
-                    meta.credits_cast = peoples
-                        .filter((p: any) => p.known_for_department === 'Acting')
-                        .map((p: any) => ({
-                            id: p.tmdb_people_id,
-                            name: p.name,
-                            character: p.character || '',
-                            profile_path: p.profile_path ? (p.profile_path.startsWith('http') ? p.profile_path : `https://image.tmdb.org/t/p/w185${p.profile_path}`) : null
-                        }))
+                    const limitedActors = peoples.filter((p: any) => p.known_for_department === 'Acting').slice(0, 10)
+                    const limitedCrew = peoples.filter((p: any) => p.known_for_department === 'Directing' || p.known_for_department === 'Writing').slice(0, 5)
 
-                    meta.credits_crew = peoples
-                        .filter((p: any) => p.known_for_department === 'Directing' || p.known_for_department === 'Writing')
-                        .map((p: any) => ({
-                            id: p.tmdb_people_id,
-                            name: p.name,
-                            department: p.known_for_department,
-                            job: p.known_for_department === 'Directing' ? 'Director' : 'Writer',
-                            profile_path: p.profile_path ? (p.profile_path.startsWith('http') ? p.profile_path : `https://image.tmdb.org/t/p/w185${p.profile_path}`) : null
-                        }))
+                    meta.credits_cast = limitedActors.map((p: any) => ({
+                        id: p.tmdb_people_id,
+                        name: p.name,
+                        character: p.character || '',
+                        profile_path: p.profile_path ? (p.profile_path.startsWith('http') ? p.profile_path : `https://image.tmdb.org/t/p/w185${p.profile_path}`) : null
+                    }))
 
-                    // Links for navigation (deprecated field fallback)
+                    meta.credits_crew = limitedCrew.map((p: any) => ({
+                        id: p.tmdb_people_id,
+                        name: p.name,
+                        department: p.known_for_department,
+                        job: p.known_for_department === 'Directing' ? 'Director' : 'Writer',
+                        profile_path: p.profile_path ? (p.profile_path.startsWith('http') ? p.profile_path : `https://image.tmdb.org/t/p/w185${p.profile_path}`) : null
+                    }))
+
+                    // Links for navigation (properly categorized)
                     meta.links = [
                         ...(item.category?.map((cat: any) => ({
                             name: cat.name,
                             category: 'genre',
                             url: `stremio:///search?search=${encodeURIComponent(cat.name)}`
                         })) || []),
-                        ...(peoples.map((p: any) => ({
+                        ...(limitedCrew.map((p: any) => ({
                             name: p.name,
-                            category: p.known_for_department === 'Directing' ? 'director' : 'actor',
+                            category: 'director',
+                            url: `stremio:///search?search=${encodeURIComponent(p.name)}`
+                        }))),
+                        ...(limitedActors.map((p: any) => ({
+                            name: p.name,
+                            category: 'actor',
                             url: `stremio:///search?search=${encodeURIComponent(p.name)}`
                         })))
                     ]
