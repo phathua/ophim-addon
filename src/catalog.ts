@@ -23,11 +23,11 @@ export async function handleCatalog(type: string, id: string, extra: string, ori
     if (searchQuery) {
         apiUrl = `https://ophim1.com/v1/api/tim-kiem?keyword=${encodeURIComponent(searchQuery)}&page=${page}`
     } else if (id && id !== 'ophim_search') {
-        apiUrl = `https://ophim1.com/v1/api/danh-sach/${id.replace('ophim_', '')}?page=${page}`
+        apiUrl = `https://ophim1.com/v1/api/danh-sach/${id.replace('ophim_', '')}?page=${page}&sort_field=year&sort_type=desc`
         if (genreSlug) apiUrl += `&category=${genreSlug}`
         if (countrySlug) apiUrl += `&country=${countrySlug}`
     } else {
-        apiUrl = `https://ophim1.com/v1/api/danh-sach/phim-moi?page=${page}`
+        apiUrl = `https://ophim1.com/v1/api/danh-sach/phim-moi?page=${page}&sort_field=year&sort_type=desc`
     }
 
     try {

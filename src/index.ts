@@ -5,11 +5,21 @@ import { handleCatalog } from './catalog'
 import { handleMeta } from './meta'
 import { handleStream } from './stream'
 import { handleProxy } from './proxy'
+import { getConfigureHtml } from './configure'
 
 const app = new Hono()
 app.use('*', cors())
 
-app.get('/manifest.json', async (c) => c.json(await getManifest()))
+// Redirect root to configure
+app.get('/', (c) => c.redirect('/configure'))
+
+// Serve configuration page
+app.get('/configure', (c) => c.html(getConfigureHtml(c.req.url)))
+
+app.get('/manifest.json', async (c) => {
+    const catalogParam = c.req.query('catalogs') || ''
+    return c.json(await getManifest(catalogParam))
+})
 app.get('/p/i/:path{.+}', (c) => handleProxy(c)) // Proxy Image
 app.get('/p/v/:hex/:file{.+}', (c) => handleProxy(c)) // Proxy Video Segments
 app.get('/p/v/:hex', (c) => handleProxy(c))           // Proxy Master Playlist
@@ -20,7 +30,10 @@ app.get('/*', async (c) => {
     let path = decodeURIComponent(c.req.path)
     console.log(`[Request] Decoded Path: ${path}`)
 
-    if (path === '/manifest.json') return c.json(await getManifest())
+    if (path === '/manifest.json') {
+        const catalogParam = c.req.query('catalogs') || ''
+        return c.json(await getManifest(catalogParam))
+    }
 
     // Catalog: /catalog/:type/:id/:extra?.json
     if (path.startsWith('/catalog/')) {
