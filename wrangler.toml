@@ -5,3 +5,5 @@ compatibility_date = "2024-02-22"
 [vars]
 OPHIM_API_BASE = "https://ophim1.com"
 OPHIM_IMG_BASE = "https://img.ophim.live/uploads/movies/"
+ADDON_ID = "com.nghienphim.ophim.pro"
+ADDON_LOGO = "https://i.ibb.co/PvLCMqzK/ophim-logo.png"

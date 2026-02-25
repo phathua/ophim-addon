@@ -6,31 +6,46 @@ export async function handleCatalog(type: string, id: string, extra: string) {
     console.log(`[Catalog] Parsed: type=${type}, id=${id}, extra=${extra}`)
 
     await ensureMetadata()
-    let searchQuery = '', genreSlug = '', countrySlug = ''
+    let searchQuery = '', genreSlug = '', countrySlug = '', skip = 0
     if (extra) {
         extra.split('&').forEach(p => {
             const [k, v] = p.split('=')
             if (k === 'search') searchQuery = v
             if (k === 'genre') genreSlug = GENRES.find(g => g.name === v)?.slug || ''
             if (k === 'country') countrySlug = COUNTRIES.find(c => c.name === v)?.slug || ''
+            if (k === 'skip') skip = parseInt(v) || 0
         })
     }
 
+    const page = Math.floor(skip / 24) + 1
+
     let apiUrl = ''
     if (searchQuery) {
-        apiUrl = `https://ophim1.com/v1/api/tim-kiem?keyword=${encodeURIComponent(searchQuery)}&page=1`
+        apiUrl = `https://ophim1.com/v1/api/tim-kiem?keyword=${encodeURIComponent(searchQuery)}&page=${page}`
     } else if (id && id !== 'ophim_search') {
-        apiUrl = `https://ophim1.com/v1/api/danh-sach/${id.replace('ophim_', '')}?page=1`
+        apiUrl = `https://ophim1.com/v1/api/danh-sach/${id.replace('ophim_', '')}?page=${page}`
         if (genreSlug) apiUrl += `&category=${genreSlug}`
         if (countrySlug) apiUrl += `&country=${countrySlug}`
     } else {
-        apiUrl = 'https://ophim1.com/v1/api/danh-sach/phim-moi?page=1'
+        apiUrl = `https://ophim1.com/v1/api/danh-sach/phim-moi?page=${page}`
     }
 
     try {
-        const res = await fetch(apiUrl)
-        const result: any = await res.json()
-        const metas = (result.data.items || []).map((item: any) => ({
+        // Fetch two pages to provide a larger buffer (>20 items per scroll as requested)
+        const fetchPage = async (p: number) => {
+            const url = apiUrl.replace(`page=${page}`, `page=${p}`)
+            const res = await fetch(url)
+            return await res.json()
+        }
+
+        const [result1, result2] = await Promise.all([
+            fetchPage(page),
+            fetchPage(page + 1).catch(() => ({ data: { items: [] } }))
+        ]) as [any, any]
+
+        const allItems = [...(result1.data?.items || []), ...(result2.data?.items || [])]
+
+        const metas = allItems.map((item: any) => ({
             id: `ophim:${item.slug}`,
             type: (item.type === 'series' || item.episodes_count > 1) ? 'series' : 'movie',
             name: item.name,

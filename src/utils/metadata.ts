@@ -1,3 +1,6 @@
+export const ADDON_ID = 'com.nghienphim.ophim.pro'
+export const ADDON_LOGO = 'https://i.ibb.co/PvLCMqzK/ophim-logo.png'
+
 export let GENRES: { name: string, slug: string }[] = []
 export let COUNTRIES: { name: string, slug: string }[] = []
 let lastMetaUpdate = 0

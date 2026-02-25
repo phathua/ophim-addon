@@ -1,19 +1,22 @@
-import { GENRES, COUNTRIES, ensureMetadata } from './utils/metadata'
+import { GENRES, COUNTRIES, ensureMetadata, ADDON_ID, ADDON_LOGO } from './utils/metadata'
 
 export async function getManifest() {
     await ensureMetadata()
     const EXTRA_CATALOG = [
         { name: 'genre', options: GENRES.map(g => g.name), isRequired: false },
-        { name: 'country', options: COUNTRIES.map(c => c.name), isRequired: false }
+        { name: 'country', options: COUNTRIES.map(c => c.name), isRequired: false },
+        { name: 'skip', isRequired: false }
     ]
 
     const EXTRA_SEARCH = [
-        { name: 'search', isRequired: true }
+        { name: 'search', isRequired: true },
+        { name: 'skip', isRequired: false }
     ]
 
     return {
-        id: 'com.nghienphim.ophim.pro',
+        id: ADDON_ID,
         name: 'OPhim Stremio Addon',
+        logo: ADDON_LOGO,
         version: '1.3.2',
         description: 'Addon xem phim từ OPhim với đầy đủ danh mục, thể loại và quốc gia cập nhật tự động.',
         resources: [
