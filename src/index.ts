@@ -11,7 +11,8 @@ app.use('*', cors())
 
 app.get('/manifest.json', async (c) => c.json(await getManifest()))
 app.get('/p/i/:path{.+}', (c) => handleProxy(c)) // Proxy Image
-app.get('/p/s/:b64{.+}', (c) => handleProxy(c)) // Proxy Stream
+app.get('/p/v/:hex/:file{.+}', (c) => handleProxy(c)) // Proxy Video Segments
+app.get('/p/v/:hex', (c) => handleProxy(c))           // Proxy Master Playlist
 app.get('/proxy', (c) => handleProxy(c))         // Legacy/Query Proxy
 
 // Wildcard route to handle all Stremio resources
