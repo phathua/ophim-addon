@@ -12,7 +12,7 @@ export async function getManifest() {
     ]
 
     return {
-        id: 'com.vibe.ophim.pro',
+        id: 'com.nghienphim.ophim.pro',
         name: 'OPhim Stremio Addon',
         version: '1.3.2',
         description: 'Addon xem phim từ OPhim với đầy đủ danh mục, thể loại và quốc gia cập nhật tự động.',
@@ -35,7 +35,6 @@ export async function getManifest() {
             { type: 'movie', id: 'ophim_phim-long-tien', name: 'OPhim - Lồng Tiếng', extra: EXTRA_CATALOG },
             { type: 'series', id: 'ophim_phim-bo-dang-chieu', name: 'OPhim - Bộ Đang Chiếu', extra: EXTRA_CATALOG },
             { type: 'series', id: 'ophim_phim-bo-hoan-thanh', name: 'OPhim - Bộ Hoàn Thành', extra: EXTRA_CATALOG },
-            { type: 'movie', id: 'ophim_phim-sap-chieu', name: 'OPhim - Sắp Chiếu', extra: EXTRA_CATALOG },
             { type: 'movie', id: 'ophim_subteam', name: 'OPhim - Subteam', extra: EXTRA_CATALOG },
             { type: 'movie', id: 'ophim_phim-chieu-rap', name: 'OPhim - Chiếu Rạp', extra: EXTRA_CATALOG }
         ],

@@ -36,7 +36,8 @@ export async function handleMeta(type: string, id: string) {
             cast: item.actor || [],
             trailers: getYoutubeId(item.trailer_url) ? [{ source: getYoutubeId(item.trailer_url), type: 'Trailer' }] : [],
             imdbRating: undefined,
-            imdb_id: undefined
+            imdb_id: undefined,
+            logo: 'https://i.ibb.co/7dwr0j1f/loading.png'
         }
 
         // Extract IDs and Rating from item with fallback
@@ -110,6 +111,11 @@ export async function handleMeta(type: string, id: string) {
             console.error(`[Meta] Error fetching peoples for ${slug}:`, e)
         }
 
+        // Update logo if imdb_id is found
+        if (meta.imdb_id) {
+            meta.logo = `https://images.metahub.space/logo/medium/${meta.imdb_id}/img`
+        }
+
         // FINAL FALLBACK: Fetch from Cinemeta if runtime or rating is still missing
         if (meta.imdb_id && ((!meta.runtime || meta.runtime.includes('?') || meta.runtime === '0 Phút') || !meta.imdbRating)) {
             try {
@@ -122,6 +128,9 @@ export async function handleMeta(type: string, id: string) {
                     }
                     if (!meta.imdbRating && cinemetaData.meta.imdbRating) {
                         meta.imdbRating = cinemetaData.meta.imdbRating.toString()
+                    }
+                    if (cinemetaData.meta.logo) {
+                        meta.logo = cinemetaData.meta.logo
                     }
                 }
             } catch (e) {
