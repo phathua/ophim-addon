@@ -40,7 +40,7 @@ export async function handleCatalog(type: string, id: string, extra: string) {
 
         const [result1, result2] = await Promise.all([
             fetchPage(page),
-            fetchPage(page + 1).catch(() => ({ data: { items: [] } }))
+            (skip > 0) ? fetchPage(page + 1).catch(() => ({ data: { items: [] } })) : Promise.resolve({ data: { items: [] } })
         ]) as [any, any]
 
         const allItems = [...(result1.data?.items || []), ...(result2.data?.items || [])]
