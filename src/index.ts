@@ -4,11 +4,15 @@ import { getManifest } from './manifest'
 import { handleCatalog } from './catalog'
 import { handleMeta } from './meta'
 import { handleStream } from './stream'
+import { handleProxy } from './proxy'
 
 const app = new Hono()
 app.use('*', cors())
 
 app.get('/manifest.json', async (c) => c.json(await getManifest()))
+app.get('/p/i/:path{.+}', (c) => handleProxy(c)) // Proxy Image
+app.get('/p/s/:b64{.+}', (c) => handleProxy(c)) // Proxy Stream
+app.get('/proxy', (c) => handleProxy(c))         // Legacy/Query Proxy
 
 // Wildcard route to handle all Stremio resources
 app.get('/*', async (c) => {
@@ -29,7 +33,8 @@ app.get('/*', async (c) => {
         let id = idRaw.endsWith('.json') ? idRaw.slice(0, -5) : idRaw
         let extra = extraRaw.endsWith('.json') ? extraRaw.slice(0, -5) : extraRaw
 
-        return c.json(await handleCatalog(type, id, extra))
+        const origin = new URL(c.req.url).origin
+        return c.json(await handleCatalog(type, id, extra, origin))
     }
 
     // Meta: /meta/:type/:id.json
@@ -40,7 +45,8 @@ app.get('/*', async (c) => {
         let idRaw = parts.length > 1 ? parts[1] : parts[0]
         let id = idRaw.split('.json')[0]
 
-        return c.json(await handleMeta(type, id))
+        const origin = new URL(c.req.url).origin
+        return c.json(await handleMeta(type, id, origin))
     }
 
     // Stream: /stream/:type/:id.json
@@ -52,7 +58,8 @@ app.get('/*', async (c) => {
         let idRaw = parts[1] || ''
         let id = idRaw.endsWith('.json') ? idRaw.slice(0, -5) : idRaw
 
-        return c.json(await handleStream(type, id))
+        const origin = new URL(c.req.url).origin
+        return c.json(await handleStream(type, id, origin))
     }
 
     return c.text('Not Found', 404)

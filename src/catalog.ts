@@ -2,7 +2,7 @@ import { GENRES, COUNTRIES, ensureMetadata } from './utils/metadata'
 
 const IMG_BASE = 'https://img.ophim1.com/uploads/movies/'
 
-export async function handleCatalog(type: string, id: string, extra: string) {
+export async function handleCatalog(type: string, id: string, extra: string, origin: string) {
     console.log(`[Catalog] Parsed: type=${type}, id=${id}, extra=${extra}`)
 
     await ensureMetadata()
@@ -49,7 +49,7 @@ export async function handleCatalog(type: string, id: string, extra: string) {
             id: `ophim:${item.slug}`,
             type: (item.type === 'series' || item.episodes_count > 1) ? 'series' : 'movie',
             name: item.name,
-            poster: item.thumb_url.startsWith('http') ? item.thumb_url.replace('img.ophim.cc', 'img.ophim1.com') : `${IMG_BASE}${item.thumb_url}`,
+            poster: `${origin}/p/i/${(item.thumb_url.startsWith('http') ? item.thumb_url.replace('img.ophim.cc', 'img.ophim1.com') : `${IMG_BASE}${item.thumb_url}`).replace('https://img.ophim1.com/uploads/movies/', '')}`,
             description: `${item.origin_name} (${item.year})`,
             releaseInfo: item.year?.toString(),
             imdbRating: (item.imdb?.vote_average || item.tmdb?.vote_average)?.toString()

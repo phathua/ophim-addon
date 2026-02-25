@@ -8,9 +8,15 @@ const getYoutubeId = (url: string) => {
     return match ? match[1] : null
 }
 
-const fixUrl = (u: string) => !u ? '' : (u.startsWith('http') ? u.replace('img.ophim.cc', 'img.ophim1.com') : `${IMG_BASE}${u}`)
+const fixUrl = (u: string, origin: string) => {
+    if (!u) return '';
+    let target = u.startsWith('http') ? u.replace('img.ophim.cc', 'img.ophim1.com') : `${IMG_BASE}${u}`;
+    const relPath = target.replace('https://img.ophim1.com/uploads/movies/', '');
+    // If it's a relative path from OPhim, it's very clean. If not, it uses the full URL.
+    return `${origin}/p/i/${relPath}`;
+}
 
-export async function handleMeta(type: string, id: string) {
+export async function handleMeta(type: string, id: string, origin: string) {
     const slug = id.includes(':') ? id.split(':')[1] : id
     console.log(`[Meta] Using Slug: ${slug}`)
 
@@ -24,8 +30,8 @@ export async function handleMeta(type: string, id: string) {
             id: `ophim:${item.slug}`,
             type: (item.type === 'series' || item.type === 'hoat-hinh' || (item.episodes && item.episodes[0]?.server_data.length > 1)) ? 'series' : 'movie',
             name: item.name,
-            poster: fixUrl(item.thumb_url),
-            background: fixUrl(item.poster_url),
+            poster: fixUrl(item.thumb_url, origin),
+            background: fixUrl(item.poster_url, origin),
             description: item.content ? item.content.replace(/<[^>]*>?/gm, '') : '',
             releaseInfo: item.year?.toString(),
             released: item.created?.time || (item.year ? new Date(item.year, 0, 1).toISOString() : undefined),

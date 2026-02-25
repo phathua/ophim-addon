@@ -1,6 +1,6 @@
 import { getSlugFromImdb } from './utils/mapping'
 
-export async function handleStream(type: string, id: string) {
+export async function handleStream(type: string, id: string, origin: string) {
     console.log(`[Stream] Request: type=${type}, id=${id}`)
 
     let slug = ''
@@ -62,7 +62,7 @@ export async function handleStream(type: string, id: string) {
                 streams.push({
                     name: `OPhim\n${s.server_name}`,
                     title: `${item.name}\n${ep.name} [${item.quality || 'HD'}]`,
-                    url: ep.link_m3u8
+                    url: `${origin}/p/s/${btoa(ep.link_m3u8)}`
                 })
             }
         })
