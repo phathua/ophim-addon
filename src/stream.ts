@@ -63,7 +63,7 @@ export async function handleStream(type: string, id: string, origin: string) {
                 streams.push({
                     name: `OPhim\n${s.server_name}`,
                     title: `${item.name}\n${ep.name} [${item.quality || 'HD'}]`,
-                    url: `${origin}/p/v/${mask(ep.link_m3u8)}`
+                    url: `${origin}/p/v/${mask(ep.link_m3u8)}/index.m3u8`
                 })
             }
         })
