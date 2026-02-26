@@ -2,19 +2,37 @@ import { GENRES, COUNTRIES, ensureMetadata } from './utils/metadata'
 
 const IMG_BASE = 'https://img.ophim1.com/uploads/movies/'
 
-export async function handleCatalog(type: string, id: string, extra: string, origin: string) {
+export async function handleCatalog(type: string, id: string, extra: string, origin: string, configData?: any) {
     console.log(`[Catalog] Parsed: type=${type}, id=${id}, extra=${extra}`)
 
     await ensureMetadata()
-    let searchQuery = '', genreSlug = '', countrySlug = '', skip = 0
+    let searchQuery = '', skip = 0
+
+    // Cấu hình từ config (nếu không có bộ lọc từ người dùng)
+    let userGenre = '', userCountry = '', userYear = ''
+    let hasExtraFilters = false
+
     if (extra) {
         extra.split('&').forEach(p => {
             const [k, v] = p.split('=')
-            if (k === 'search') searchQuery = v
-            if (k === 'genre') genreSlug = GENRES.find(g => g.name === v)?.slug || ''
-            if (k === 'country') countrySlug = COUNTRIES.find(c => c.name === v)?.slug || ''
-            if (k === 'skip') skip = parseInt(v) || 0
+            if (k === 'genre') { hasExtraFilters = true; userGenre = GENRES.find(g => g.name === v)?.slug || '' }
+            if (k === 'country') { hasExtraFilters = true; userCountry = COUNTRIES.find(c => c.name === v)?.slug || '' }
+            if (k === 'year') { hasExtraFilters = true; userYear = v }
+            if (k === 'search') { hasExtraFilters = true; searchQuery = v }
+            if (k === 'skip') { skip = parseInt(v) || 0; } // scrollKHÔNG đè bộ lọc mặc định
         })
+    }
+
+    const catSlug = id.replace('ophim_', '')
+    let finalGenre = userGenre;
+    let finalCountry = userCountry;
+    let finalYear = userYear;
+
+    // Chỉ áp dụng Default config filters nếu người dùng ĐANG trên BOARD hoặc CHƯA CHỌN BỘ LỌC NÀO
+    if (!hasExtraFilters && configData) {
+        finalGenre = configData.g || finalGenre;
+        finalCountry = configData.c || finalCountry;
+        finalYear = configData.y || finalYear;
     }
 
     const page = Math.floor(skip / 24) + 1
@@ -23,9 +41,10 @@ export async function handleCatalog(type: string, id: string, extra: string, ori
     if (searchQuery) {
         apiUrl = `https://ophim1.com/v1/api/tim-kiem?keyword=${encodeURIComponent(searchQuery)}&page=${page}`
     } else if (id && id !== 'ophim_search') {
-        apiUrl = `https://ophim1.com/v1/api/danh-sach/${id.replace('ophim_', '')}?page=${page}&sort_field=year&sort_type=desc`
-        if (genreSlug) apiUrl += `&category=${genreSlug}`
-        if (countrySlug) apiUrl += `&country=${countrySlug}`
+        apiUrl = `https://ophim1.com/v1/api/danh-sach/${catSlug}?page=${page}&sort_field=year&sort_type=desc`
+        if (finalGenre) apiUrl += `&category=${finalGenre}`
+        if (finalCountry) apiUrl += `&country=${finalCountry}`
+        if (finalYear) apiUrl += `&year=${finalYear}`
     } else {
         apiUrl = `https://ophim1.com/v1/api/danh-sach/phim-moi?page=${page}&sort_field=year&sort_type=desc`
     }
@@ -45,15 +64,25 @@ export async function handleCatalog(type: string, id: string, extra: string, ori
 
         const allItems = [...(result1.data?.items || []), ...(result2.data?.items || [])]
 
-        const metas = allItems.map((item: any) => ({
-            id: `ophim:${item.slug}`,
-            type: (item.type === 'series' || item.episodes_count > 1) ? 'series' : 'movie',
-            name: item.name,
-            poster: `${origin}/p/i/${(item.thumb_url.startsWith('http') ? item.thumb_url.replace('img.ophim.cc', 'img.ophim1.com') : `${IMG_BASE}${item.thumb_url}`).replace('https://img.ophim1.com/uploads/movies/', '')}`,
-            description: `${item.origin_name} (${item.year})`,
-            releaseInfo: item.year?.toString(),
-            imdbRating: (item.imdb?.vote_average || item.tmdb?.vote_average)?.toString()
-        }))
+        const metas = allItems.map((item: any) => {
+            const description = item.content ?
+                item.content.replace(/<[^>]*>?/gm, '') :
+                `[${item.quality || 'FHD'} - ${item.lang || 'VietSub'}] ${item.episode_current ? `Tình trạng: ${item.episode_current}\n\n` : ''}Đạo diễn: ${item.director ? item.director.join(', ') : 'Đang cập nhật'}\nDiễn viên: ${item.actor ? item.actor.join(', ') : 'Đang cập nhật'}\n\n${item.origin_name} (${item.year})`;
+
+            return {
+                id: `ophim:${item.slug}`,
+                type: (item.type === 'series' || item.episodes_count > 1) ? 'series' : 'movie',
+                name: item.name,
+                poster: `${origin}/p/i/${(item.thumb_url.startsWith('http') ? item.thumb_url.replace('img.ophim.cc', 'img.ophim1.com') : `${IMG_BASE}${item.thumb_url}`).replace('https://img.ophim1.com/uploads/movies/', '')}`,
+                description: description,
+                releaseInfo: item.year?.toString(),
+                imdbRating: (item.imdb?.vote_average || item.tmdb?.vote_average)?.toString(),
+                genres: item.category?.map((c: any) => c.name) || [],
+                director: item.director || [],
+                cast: item.actor || [],
+                runtime: item.time
+            }
+        })
         return { metas }
     } catch (e) {
         return { metas: [] }

@@ -14,25 +14,36 @@ app.use('*', cors())
 app.get('/', (c) => c.redirect('/configure'))
 
 // Serve configuration page
-app.get('/configure', (c) => c.html(getConfigureHtml(c.req.url)))
+app.get('/configure', async (c) => c.html(await getConfigureHtml(c.req.url.replace('/configure', ''))))
 
-app.get('/manifest.json', async (c) => {
-    const catalogParam = c.req.query('catalogs') || ''
-    return c.json(await getManifest(catalogParam))
-})
 app.get('/p/i/:path{.+}', (c) => handleProxy(c)) // Proxy Image
 app.get('/p/v/:hex/:file{.+}', (c) => handleProxy(c)) // Proxy Video Segments
 app.get('/p/v/:hex', (c) => handleProxy(c))           // Proxy Master Playlist
 app.get('/proxy', (c) => handleProxy(c))         // Legacy/Query Proxy
 
-// Wildcard route to handle all Stremio resources
+// Wildcard route to handle all Stremio resources with optional config
 app.get('/*', async (c) => {
     let path = decodeURIComponent(c.req.path)
+
+    // Parse config settings from stremio installation custom URL Base
+    let configData: any = null
+    const partsPath = path.split('/')
+    if (partsPath.length > 1 && partsPath[1].startsWith('cf_')) {
+        try {
+            const b64 = partsPath[1].substring(3)
+            configData = JSON.parse(atob(b64))
+            path = '/' + partsPath.slice(2).join('/')
+            console.log(`[Request] Extracted Config:`, configData)
+        } catch (e) {
+            console.error('[Request] Failed to parse config data', e)
+        }
+    }
+
     console.log(`[Request] Decoded Path: ${path}`)
 
     if (path === '/manifest.json') {
         const catalogParam = c.req.query('catalogs') || ''
-        return c.json(await getManifest(catalogParam))
+        return c.json(await getManifest(configData, catalogParam))
     }
 
     // Catalog: /catalog/:type/:id/:extra?.json
@@ -48,7 +59,7 @@ app.get('/*', async (c) => {
         let extra = extraRaw.endsWith('.json') ? extraRaw.slice(0, -5) : extraRaw
 
         const origin = new URL(c.req.url).origin
-        return c.json(await handleCatalog(type, id, extra, origin))
+        return c.json(await handleCatalog(type, id, extra, origin, configData))
     }
 
     // Meta: /meta/:type/:id.json
