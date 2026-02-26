@@ -1,3 +1,5 @@
+import { ENABLE_IMAGE_PROXY } from './proxy'
+
 const IMG_BASE = 'https://img.ophim1.com/uploads/movies/'
 
 // Helper to extract YouTube ID
@@ -11,6 +13,8 @@ const getYoutubeId = (url: string) => {
 const fixUrl = (u: string, origin: string) => {
     if (!u) return '';
     let target = u.startsWith('http') ? u.replace('img.ophim.cc', 'img.ophim1.com') : `${IMG_BASE}${u}`;
+    if (!ENABLE_IMAGE_PROXY) return target;
+
     const relPath = target.replace('https://img.ophim1.com/uploads/movies/', '');
     // If it's a relative path from OPhim, it's very clean. If not, it uses the full URL.
     return `${origin}/p/i/${relPath}`;

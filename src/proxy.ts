@@ -1,6 +1,8 @@
-
 const OPHIM_IMG_ROOT = 'https://img.ophim1.com/uploads/movies/';
 const SECRET_KEY = 42; // Simple XOR key
+
+export const ENABLE_IMAGE_PROXY = false;
+export const ENABLE_VIDEO_PROXY = false;
 
 // Salted XOR Hex Encoder/Decoder (Dynamic)
 const mask = (str: string) => {
@@ -33,6 +35,7 @@ export async function handleProxy(c: any) {
     const type = segments[2];
 
     if (type === 'i') {
+        if (!ENABLE_IMAGE_PROXY) return c.text('Image Proxy is disabled', 403);
         const path = c.req.param('path');
         const targetUrl = path.startsWith('http') ? path : `${OPHIM_IMG_ROOT}${path}`;
         const cache = (caches as any).default;
@@ -52,6 +55,7 @@ export async function handleProxy(c: any) {
     }
 
     if (type === 'v') {
+        if (!ENABLE_VIDEO_PROXY) return c.text('Video Proxy is disabled', 403);
         const hex = c.req.param('hex');
         const baseUrl = unmask(hex);
         if (!baseUrl) return c.text('Invalid token', 400);

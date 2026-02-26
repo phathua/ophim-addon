@@ -1,4 +1,4 @@
-import { mask } from './proxy'
+import { mask, ENABLE_VIDEO_PROXY } from './proxy'
 import { getSlugFromImdb } from './utils/mapping'
 
 export async function handleStream(type: string, id: string, origin: string) {
@@ -60,10 +60,11 @@ export async function handleStream(type: string, id: string, origin: string) {
             }
 
             if (ep?.link_m3u8) {
+                const streamUrl = ENABLE_VIDEO_PROXY ? `${origin}/p/v/${mask(ep.link_m3u8)}/index.m3u8` : ep.link_m3u8;
                 streams.push({
                     name: `OPhim\n${s.server_name}`,
                     title: `${item.name}\n${ep.name} [${item.quality || 'HD'}]`,
-                    url: `${origin}/p/v/${mask(ep.link_m3u8)}/index.m3u8`
+                    url: streamUrl
                 })
             }
         })

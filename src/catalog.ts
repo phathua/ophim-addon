@@ -1,4 +1,5 @@
 import { GENRES, COUNTRIES, ensureMetadata } from './utils/metadata'
+import { ENABLE_IMAGE_PROXY } from './proxy'
 
 const IMG_BASE = 'https://img.ophim1.com/uploads/movies/'
 
@@ -69,11 +70,14 @@ export async function handleCatalog(type: string, id: string, extra: string, ori
                 item.content.replace(/<[^>]*>?/gm, '') :
                 `[${item.quality || 'FHD'} - ${item.lang || 'VietSub'}] ${item.episode_current ? `Tình trạng: ${item.episode_current}\n\n` : ''}Đạo diễn: ${item.director ? item.director.join(', ') : 'Đang cập nhật'}\nDiễn viên: ${item.actor ? item.actor.join(', ') : 'Đang cập nhật'}\n\n${item.origin_name} (${item.year})`;
 
+            const thumb = item.thumb_url.startsWith('http') ? item.thumb_url.replace('img.ophim.cc', 'img.ophim1.com') : `${IMG_BASE}${item.thumb_url}`;
+            const poster = ENABLE_IMAGE_PROXY ? `${origin}/p/i/${thumb.replace('https://img.ophim1.com/uploads/movies/', '')}` : thumb;
+
             return {
                 id: `ophim:${item.slug}`,
                 type: (item.type === 'series' || item.episodes_count > 1) ? 'series' : 'movie',
                 name: item.name,
-                poster: `${origin}/p/i/${(item.thumb_url.startsWith('http') ? item.thumb_url.replace('img.ophim.cc', 'img.ophim1.com') : `${IMG_BASE}${item.thumb_url}`).replace('https://img.ophim1.com/uploads/movies/', '')}`,
+                poster: poster,
                 description: description,
                 releaseInfo: item.year?.toString(),
                 imdbRating: (item.imdb?.vote_average || item.tmdb?.vote_average)?.toString(),

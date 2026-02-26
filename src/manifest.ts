@@ -58,26 +58,13 @@ export async function getManifest(configData?: any, catalogParam?: string) {
         selectedSlugs = DEFAULT_CATALOG_SLUGS
     }
 
-    // Chuyển đổi ID config thành Tên dễ đọc
-    let filterTags: string[] = []
-    if (configData) {
-        if (configData.y) filterTags.push(configData.y)
-        if (configData.c) {
-            filterTags.push(COUNTRIES.find(c => c.slug === configData.c)?.name || configData.c)
-        }
-        if (configData.g) {
-            filterTags.push(GENRES.find(g => g.slug === configData.g)?.name || configData.g)
-        }
-    }
-    const filterSuffix = filterTags.length > 0 ? ` (${filterTags.join(', ')})` : ''
-
     // Lọc catalogs theo slugs đã chọn, giữ nguyên thứ tự trong registry
     const filteredCatalogs = ALL_CATALOGS
         .filter(c => selectedSlugs.includes(c.slug))
         .map(c => ({
             type: c.type,
             id: c.id,
-            name: `${c.name}${filterSuffix}`,
+            name: c.name,
             extra: EXTRA_CATALOG
         }))
 
